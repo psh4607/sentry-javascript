@@ -12,8 +12,10 @@ import { sentryOrchestrionPlugin } from '@sentry/server-utils/orchestrion/vite';
  * (e.g. `mysql`) at build time via orchestrion, so the SDK can trace them
  * without monkey-patching, which wouldn't work in workerd anyway.
  *
- * The Cloudflare SDK detects the injection at runtime and subscribes to the
- * channels automatically; the worker itself only needs the usual
+ * It also injects a generated registration module into the bundle, which
+ * registers the matching channel-subscriber integrations for `Sentry.init` to
+ * pick up. The SDK itself doesn't import them, so workers built without this
+ * plugin don't ship that code; the worker only needs the usual
  * `Sentry.withSentry` wrapping.
  *
  * @example
@@ -46,5 +48,5 @@ import { sentryOrchestrionPlugin } from '@sentry/server-utils/orchestrion/vite';
  * ```
  */
 export function sentryCloudflareVitePlugin() {
-  return sentryOrchestrionPlugin();
+  return sentryOrchestrionPlugin({ registerIntegrations: true });
 }

@@ -14,13 +14,21 @@ import {
 import type { CloudflareClientOptions, CloudflareOptions } from './client';
 import { CloudflareClient } from './client';
 import { makeFlushLock } from './flush';
-import { channelIntegrations, isOrchestrionInjected } from '@sentry/server-utils/orchestrion';
 import { httpServerIntegration } from './integrations/httpServer';
 import { fetchIntegration } from './integrations/fetch';
 import { honoIntegration } from './integrations/hono';
 import { setupOpenTelemetryTracer } from './opentelemetry/tracer';
 import { makeCloudflareTransport } from './transport';
 import { defaultStackParser } from './vendor/stacktrace';
+
+/**
+ * Exact copy of the function from `@sentry/server-utils/orchestrion`.
+ * This is to avoid importing the orchestrion package directly into the cloudflare package.
+ * TODO(v11): Use `@sentry/server-utils/orchestrion` once we move to `nodejs_compat` by default
+ */
+function getRegisteredChannelIntegrations(): Integration[] {
+  return (globalThis.__SENTRY_ORCHESTRION__?.integrations || []).map(factory => factory());
+}
 
 /** Get the default integrations for the Cloudflare SDK. */
 export function getDefaultIntegrations(options: CloudflareOptions): Integration[] {
@@ -47,9 +55,11 @@ export function getDefaultIntegrations(options: CloudflareOptions): Integration[
     consoleIntegration(),
     // The orchestrion diagnostics-channel subscribers (mysql, pg, …). The
     // `@sentry/cloudflare/vite` plugin injects the channels at build time and
-    // sets the orchestrion bundler marker; without it the channels never fire,
-    // so only add the subscribers when injection actually happened.
-    ...(isOrchestrionInjected() ? Object.values(channelIntegrations).map(factory => factory()) : []),
+    // adds a generated registration module to the bundle, which puts the
+    // subscriber factories on the global marker. Read from there instead of
+    // importing them so bundles built without the plugin — where the channels
+    // would never fire — don't ship the code.
+    ...getRegisteredChannelIntegrations(),
   ];
 }
 
