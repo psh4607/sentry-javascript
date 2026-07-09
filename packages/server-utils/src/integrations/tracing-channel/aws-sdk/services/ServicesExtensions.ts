@@ -1,5 +1,6 @@
 import type { Span } from '@sentry/core';
 import type { NormalizedRequest, NormalizedResponse, RequestMetadata } from '../types';
+import { BedrockRuntimeServiceExtension } from './bedrock-runtime';
 import { DynamodbServiceExtension } from './dynamodb';
 import { KinesisServiceExtension } from './kinesis';
 import { LambdaServiceExtension } from './lambda';
@@ -25,6 +26,7 @@ export class ServicesExtensions implements ServiceExtension {
     this._services.set('Lambda', new LambdaServiceExtension());
     this._services.set('S3', new S3ServiceExtension());
     this._services.set('Kinesis', new KinesisServiceExtension());
+    this._services.set('BedrockRuntime', new BedrockRuntimeServiceExtension());
   }
 
   public requestPreSpanHook(request: NormalizedRequest): RequestMetadata {
