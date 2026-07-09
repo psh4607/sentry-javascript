@@ -15,6 +15,7 @@ import { postgresChannelIntegration } from '../integrations/tracing-channel/post
 import { postgresJsChannelIntegration } from '../integrations/tracing-channel/postgres-js';
 import { vercelAiChannelIntegration } from '../integrations/tracing-channel/vercel-ai';
 import { expressChannelIntegration } from '../integrations/tracing-channel/express';
+import { firebaseChannelIntegration } from '../integrations/tracing-channel/firebase';
 
 export { detectOrchestrionSetup, isOrchestrionInjected } from './detect';
 export {
@@ -32,6 +33,7 @@ export {
   postgresJsChannelIntegration,
   vercelAiChannelIntegration,
   expressChannelIntegration,
+  firebaseChannelIntegration,
 };
 export type { IORedisChannelIntegrationOptions, IORedisResponseHook } from '../integrations/tracing-channel/ioredis';
 export type { PostgresJsChannelIntegrationOptions } from '../integrations/tracing-channel/postgres-js';
@@ -69,4 +71,5 @@ export const channelIntegrations = {
   expressIntegration: expressChannelIntegration,
   graphqlIntegration: graphqlDiagnosticsChannelIntegration,
   kafkajsIntegration: kafkajsChannelIntegration,
+  firebaseIntegration: firebaseChannelIntegration,
 } as const;
