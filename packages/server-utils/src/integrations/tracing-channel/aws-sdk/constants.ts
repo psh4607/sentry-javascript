@@ -46,3 +46,17 @@ export const DB_SYSTEM_VALUE_DYNAMODB = 'dynamodb';
 export const ATTR_AWS_SECRETSMANAGER_SECRET_ARN = 'aws.secretsmanager.secret.arn';
 export const ATTR_AWS_STEP_FUNCTIONS_ACTIVITY_ARN = 'aws.step_functions.activity.arn';
 export const ATTR_AWS_STEP_FUNCTIONS_STATE_MACHINE_ARN = 'aws.step_functions.state_machine.arn';
+
+// SNS
+export const ATTR_AWS_SNS_TOPIC_ARN = 'aws.sns.topic.arn';
+
+// Lambda (faas)
+export const ATTR_FAAS_INVOKED_NAME = 'faas.invoked_name';
+export const ATTR_FAAS_INVOKED_PROVIDER = 'faas.invoked_provider';
+export const ATTR_FAAS_INVOKED_REGION = 'faas.invoked_region';
+export const ATTR_FAAS_EXECUTION = 'faas.execution';
+
+// Messaging (obsolete OTel conventions kept for parity with the OTel integration)
+export const ATTR_MESSAGING_DESTINATION = 'messaging.destination';
+export const ATTR_MESSAGING_DESTINATION_KIND = 'messaging.destination_kind';
+export const MESSAGING_DESTINATION_KIND_VALUE_TOPIC = 'topic';
