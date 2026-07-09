@@ -151,6 +151,8 @@ export class DynamodbServiceExtension implements ServiceExtension {
     return {
       spanAttributes,
       spanKind: SPAN_KIND.CLIENT,
+      // Matches what the exporter infers from `db.system` for the OTel DynamoDB spans.
+      spanOp: 'db',
     };
   }
 
