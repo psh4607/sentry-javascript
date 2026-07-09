@@ -1,5 +1,5 @@
-import { RPC_METHOD, RPC_SERVICE } from '@sentry/conventions/attributes';
-import { ATTR_RPC_SYSTEM, CLOUD_REGION } from './constants';
+import { CLOUD_REGION, RPC_METHOD, RPC_SERVICE } from '@sentry/conventions/attributes';
+import { ATTR_RPC_SYSTEM } from './constants';
 import type { NormalizedRequest } from './types';
 
 export function removeSuffixFromStringIfExists(str: string, suffixToRemove: string): string {

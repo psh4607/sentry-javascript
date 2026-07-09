@@ -8,12 +8,12 @@ import {
   startInactiveSpan,
   waitForTracingChannelBinding,
 } from '@sentry/core';
-import { HTTP_STATUS_CODE } from '@sentry/conventions/attributes';
+import { CLOUD_REGION, HTTP_STATUS_CODE } from '@sentry/conventions/attributes';
 import { DEBUG_BUILD } from '../../../debug-build';
 import { CHANNELS } from '../../../orchestrion/channels';
 import type { TracingChannelLifeCycleOptions } from '../../../tracing-channel';
 import { bindTracingChannelToSpan } from '../../../tracing-channel';
-import { AWS_REQUEST_EXTENDED_ID, AWS_REQUEST_ID, AWS_SDK_ORIGIN, CLOUD_REGION } from './constants';
+import { AWS_REQUEST_EXTENDED_ID, AWS_REQUEST_ID, AWS_SDK_ORIGIN } from './constants';
 import { ServicesExtensions } from './services';
 import type { NormalizedRequest, NormalizedResponse, RequestMetadata } from './types';
 import { extractAttributesFromNormalizedRequest, normalizeV3Request, removeSuffixFromStringIfExists } from './utils';
