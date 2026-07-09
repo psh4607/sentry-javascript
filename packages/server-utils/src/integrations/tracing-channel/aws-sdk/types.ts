@@ -28,4 +28,6 @@ export interface RequestMetadata {
   spanAttributes?: Record<string, unknown>;
   spanKind?: SpanKindValue;
   spanName?: string;
+  // Overrides the default `rpc` span op (e.g. `db` for DynamoDB).
+  spanOp?: string;
 }

@@ -103,6 +103,9 @@ const _awsChannelIntegration = (() => {
           const span = startInactiveSpan({
             name: requestMetadata.spanName ?? `${normalizedRequest.serviceName}.${normalizedRequest.commandName}`,
             kind: requestMetadata.spanKind ?? SPAN_KIND.CLIENT,
+            // `rpc` matches what the exporter infers from `rpc.service` for the OTel aws-sdk spans;
+            // service extensions override it where inference yields a different op (DynamoDB: `db`).
+            op: requestMetadata.spanOp ?? 'rpc',
             attributes: {
               [SEMANTIC_ATTRIBUTE_SENTRY_ORIGIN]: AWS_SDK_ORIGIN,
               ...extractAttributesFromNormalizedRequest(normalizedRequest),
