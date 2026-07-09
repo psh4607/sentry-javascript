@@ -156,8 +156,18 @@ const _awsChannelIntegration = (() => {
 
           safe(() => {
             if (failed) {
-              const err = data.error as { $metadata?: Record<string, any>; RequestId?: string } | undefined;
-              setMetadataAttributes(span, { requestId: err?.RequestId, ...err?.$metadata });
+              const err = data.error as
+                | { $metadata?: Record<string, any>; RequestId?: string; extendedRequestId?: string }
+                | undefined;
+              const errMetadata = err?.$metadata;
+              // Like the OTel path, read RequestId/extendedRequestId off the error itself, with
+              // `$metadata` (which smithy service errors also carry) as the fallback. A spread won't
+              // do: `$metadata` includes these keys with `undefined` values, clobbering the fallback.
+              setMetadataAttributes(span, {
+                requestId: err?.RequestId ?? errMetadata?.requestId,
+                httpStatusCode: errMetadata?.httpStatusCode,
+                extendedRequestId: err?.extendedRequestId ?? errMetadata?.extendedRequestId,
+              });
               return;
             }
 
