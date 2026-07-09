@@ -12,8 +12,11 @@ export interface ServiceExtension {
   requestPostSpanHook?: (request: NormalizedRequest, span: Span) => void;
 
   // Called after the response is received. Unlike the OTel middleware patch, a tracing-channel
-  // subscriber cannot replace the value the caller's promise resolves with (`data.result` is not
-  // writable through the channel), so extensions that need to alter the response, e.g. to wrap a
-  // stream, must mutate `response.data` in place.
+  // subscriber cannot replace the value the caller's promise resolves with: the injected settle
+  // handler returns the captured result, not `ctx.result`. It does however publish `asyncEnd`
+  // synchronously BEFORE the caller's continuations run, and `response.data` is the same object the
+  // caller receives, so extensions that need to alter the response (e.g. wrap a stream) must mutate
+  // `response.data` in place; the mutation is guaranteed to be visible to the caller. Same idiom as
+  // the vercel-ai subscribers' `result.stream` tap.
   responseHook?: (response: NormalizedResponse, span: Span) => void;
 }
