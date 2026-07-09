@@ -10,7 +10,7 @@
  */
 
 /** The span origin every aws-sdk channel span carries, mirroring the uniform OTel `auto.otel.aws`. */
-export const AWS_SDK_ORIGIN = 'auto.aws.orchestrion.aws-sdk';
+export const AWS_SDK_ORIGIN = 'auto.aws.orchestrion.aws_sdk';
 
 export const ATTR_RPC_SYSTEM = 'rpc.system';
 export const AWS_REQUEST_ID = 'aws.request.id';
