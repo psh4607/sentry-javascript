@@ -84,9 +84,8 @@ const _awsChannelIntegration = (() => {
       const getSpan = (data: AwsSendChannelContext): Span | undefined =>
         safe(() => {
           const command = data.arguments[0] as AwsV3Command | undefined;
-          const commandInput = command?.input;
           const commandName = command?.constructor?.name;
-          if (!command || !commandName || !commandInput) {
+          if (!command || !commandName) {
             // Not a recognizable v3 command call; leave the active context untouched.
             return undefined;
           }
@@ -98,7 +97,9 @@ const _awsChannelIntegration = (() => {
             // constructor name (e.g. `S3Client` -> `S3`). `serviceId` is set for all AWS clients.
             removeSuffixFromStringIfExists(data.self?.constructor?.name || 'AWS', 'Client');
 
-          const normalizedRequest = normalizeV3Request(serviceName, commandName, commandInput, undefined);
+          // Commands with all-optional members can be constructed without an input (`new
+          // ListBucketsCommand()`); the OTel path traces those too, so default rather than bail.
+          const normalizedRequest = normalizeV3Request(serviceName, commandName, command.input ?? {}, undefined);
           const requestMetadata = servicesExtensions.requestPreSpanHook(normalizedRequest);
 
           const span = startInactiveSpan({
