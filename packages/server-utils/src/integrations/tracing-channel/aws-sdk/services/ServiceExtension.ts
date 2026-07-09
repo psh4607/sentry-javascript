@@ -11,6 +11,9 @@ export interface ServiceExtension {
   // used to derive trace-propagation headers injected into outgoing messages.
   requestPostSpanHook?: (request: NormalizedRequest, span: Span) => void;
 
-  // called after the response is received. If a value is returned, it replaces the response output.
-  responseHook?: (response: NormalizedResponse, span: Span) => any | undefined;
+  // Called after the response is received. Unlike the OTel middleware patch, a tracing-channel
+  // subscriber cannot replace the value the caller's promise resolves with (`data.result` is not
+  // writable through the channel), so extensions that need to alter the response, e.g. to wrap a
+  // stream, must mutate `response.data` in place.
+  responseHook?: (response: NormalizedResponse, span: Span) => void;
 }

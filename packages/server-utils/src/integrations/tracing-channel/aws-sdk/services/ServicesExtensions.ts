@@ -24,8 +24,8 @@ export class ServicesExtensions implements ServiceExtension {
     serviceExtension?.requestPostSpanHook?.(request, span);
   }
 
-  public responseHook(response: NormalizedResponse, span: Span): any | undefined {
+  public responseHook(response: NormalizedResponse, span: Span): void {
     const serviceExtension = this._services.get(response.request.serviceName);
-    return serviceExtension?.responseHook?.(response, span);
+    serviceExtension?.responseHook?.(response, span);
   }
 }
