@@ -31,6 +31,7 @@ interface AwsSendChannelContext {
   error?: unknown;
   _sentryNormalizedRequest?: NormalizedRequest;
   _sentryRequestMetadata?: RequestMetadata;
+  _sentryRegion?: { settled: boolean; promise: Promise<void> };
 }
 
 interface AwsClientConfig {
@@ -116,9 +117,12 @@ const _awsChannelIntegration = (() => {
           data._sentryNormalizedRequest = normalizedRequest;
           data._sentryRequestMetadata = requestMetadata;
 
-          // `region` resolves asynchronously; set it on the span (still open until `send` settles)
-          // and backfill it on the normalized request once available.
-          Promise.resolve(clientConfig?.region?.())
+          // `region` resolves asynchronously while `send` proceeds (a channel subscriber cannot delay
+          // the traced call the way the OTel middleware does). Backfill it onto the span and the
+          // normalized request once available; `deferSpanEnd` holds the span open until this settles
+          // so `cloud.region` cannot be lost when `send` settles first (e.g. an early failure).
+          const regionHolder = { settled: false, promise: Promise.resolve() };
+          regionHolder.promise = Promise.resolve(clientConfig?.region?.())
             .then(region => {
               if (region) {
                 normalizedRequest.region = region;
@@ -127,7 +131,11 @@ const _awsChannelIntegration = (() => {
             })
             .catch(() => {
               // Nothing to do; continue without a region.
+            })
+            .finally(() => {
+              regionHolder.settled = true;
             });
+          data._sentryRegion = regionHolder;
 
           // Inject trace-propagation headers into outgoing messages (SQS/SNS/Lambda). Runs before
           // `send` proceeds, so the mutated `commandInput` is used to build the request.
@@ -137,7 +145,7 @@ const _awsChannelIntegration = (() => {
         });
 
       const opts: TracingChannelLifeCycleOptions<AwsSendChannelContext> = {
-        deferSpanEnd({ span, data }) {
+        deferSpanEnd({ span, data, end }) {
           const normalizedRequest = data._sentryNormalizedRequest;
           const requestMetadata = data._sentryRequestMetadata;
           if (!normalizedRequest) {
@@ -166,7 +174,21 @@ const _awsChannelIntegration = (() => {
 
           // Streaming responses end the span when their wrapped stream is consumed (see
           // bedrock-runtime); the helper must not end it on `send` settling. Errors always end here.
-          return !!requestMetadata?.isStream && !failed;
+          if (requestMetadata?.isStream && !failed) {
+            return true;
+          }
+
+          // Normally the region settles long before `send` does (the SDK awaits it internally to
+          // build the endpoint), but when `send` settles first (e.g. an early failure) hold the span
+          // open until the region backfill lands. The error status was already applied by the
+          // helper's `error` subscriber, so a plain `end()` suffices.
+          const region = data._sentryRegion;
+          if (region && !region.settled) {
+            void region.promise.then(() => end());
+            return true;
+          }
+
+          return false;
         },
       };
 
