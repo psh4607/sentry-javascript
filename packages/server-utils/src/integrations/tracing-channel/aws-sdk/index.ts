@@ -121,8 +121,18 @@ const _awsChannelIntegration = (() => {
           // the traced call the way the OTel middleware does). Backfill it onto the span and the
           // normalized request once available; `deferSpanEnd` holds the span open until this settles
           // so `cloud.region` cannot be lost when `send` settles first (e.g. an early failure).
+          //
+          // The provider call is guarded separately: the span is already started, so a synchronous
+          // throw bubbling into the enclosing `safe` would discard it without ending it (a leaked
+          // open span).
+          let regionResult: string | Promise<string> | undefined;
+          try {
+            regionResult = clientConfig?.region?.();
+          } catch {
+            // Nothing to do; continue without a region.
+          }
           const regionHolder = { settled: false, promise: Promise.resolve() };
-          regionHolder.promise = Promise.resolve(clientConfig?.region?.())
+          regionHolder.promise = Promise.resolve(regionResult)
             .then(region => {
               if (region) {
                 normalizedRequest.region = region;
