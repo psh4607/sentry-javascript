@@ -66,7 +66,6 @@
     "local-pkg": "^1.1.2"
   },
   "devDependencies": {
-    "@nuxt/module-builder": "^0.8.4",
     "@nuxt/nitro-server": "^3.21.6",
     "nitro": "^3.0.260311-beta",
     "nuxi": "^3.25.1",
@@ -76,7 +75,7 @@
   "scripts": {
     "build": "run-s build:types build:transpile",
     "build:dev": "yarn build",
-    "build:nuxt-module": "bash ./generate-build-stubs.bash && nuxt-module-build build --outDir build/module",
+    "build:nuxt-module": "rollup -c rollup.module.config.mjs && tsc -p tsconfig.module.json && node scripts/build-module-meta.mjs",
     "build:transpile": "rollup -c rollup.npm.config.mjs && yarn build:nuxt-module",
     "build:types": "tsc -p tsconfig.types.json",
     "build:watch": "run-p build:transpile:watch",
