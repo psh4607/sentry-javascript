@@ -12,7 +12,7 @@ import { CLOUD_REGION, HTTP_STATUS_CODE } from '@sentry/conventions/attributes';
 import { DEBUG_BUILD } from '../../../debug-build';
 import { CHANNELS } from '../../../orchestrion/channels';
 import type { TracingChannelLifeCycleOptions } from '../../../tracing-channel';
-import { bindTracingChannelToSpan, makeSafeSpanBuilder } from '../../../tracing-channel';
+import { bindTracingChannelToSpan } from '../../../tracing-channel';
 import { AWS_REQUEST_EXTENDED_ID, AWS_REQUEST_ID, AWS_SDK_ORIGIN } from './constants';
 import { ServicesExtensions } from './services';
 import type { NormalizedRequest, NormalizedResponse, RequestMetadata } from './types';
@@ -44,8 +44,6 @@ interface AwsV3Command {
   constructor?: { name?: string };
 }
 
-const safe = makeSafeSpanBuilder('[orchestrion:aws-sdk]');
-
 // `metadata` is smithy's `ResponseMetadata`, read off the untyped channel result/error (`any` for the
 // same reason as `CommandInput`, see types.ts).
 function setMetadataAttributes(span: Span, metadata: Record<string, any> | undefined): void {
@@ -75,8 +73,10 @@ const _awsChannelIntegration = (() => {
         return;
       }
 
-      const getSpan = (data: AwsSendChannelContext): Span | undefined =>
-        safe(() => {
+      // Everything in here (and in `deferSpanEnd` below) runs inside the tracingChannel machinery
+      // wrapping the user's `send` call, so a throw must never escape: it would break the AWS call.
+      const getSpan = (data: AwsSendChannelContext): Span | undefined => {
+        try {
           const command = data.arguments[0] as AwsV3Command | undefined;
           const commandName = command?.constructor?.name;
           if (!command || !commandName) {
@@ -125,7 +125,7 @@ const _awsChannelIntegration = (() => {
           // so `cloud.region` cannot be lost when `send` settles first (e.g. an early failure).
           //
           // The provider call is guarded separately: the span is already started, so a synchronous
-          // throw bubbling into the enclosing `safe` would discard it without ending it (a leaked
+          // throw bubbling into the enclosing catch would discard it without ending it (a leaked
           // open span).
           let regionResult: string | Promise<string> | undefined;
           try {
@@ -153,11 +153,20 @@ const _awsChannelIntegration = (() => {
           data._sentryRegion = regionHolder;
 
           // Inject trace-propagation headers into outgoing messages (SQS/SNS/Lambda). Runs before
-          // `send` proceeds, so the mutated `commandInput` is used to build the request.
-          safe(() => servicesExtensions.requestPostSpanHook(normalizedRequest, span));
+          // `send` proceeds, so the mutated `commandInput` is used to build the request. Guarded
+          // separately so a throw can't discard the already-started span via the outer catch.
+          try {
+            servicesExtensions.requestPostSpanHook(normalizedRequest, span);
+          } catch (error) {
+            DEBUG_BUILD && debug.warn('[orchestrion:aws-sdk] error in request post-span hook', error);
+          }
 
           return span;
-        });
+        } catch (error) {
+          DEBUG_BUILD && debug.warn('[orchestrion:aws-sdk] error building span', error);
+          return undefined;
+        }
+      };
 
       const opts: TracingChannelLifeCycleOptions<AwsSendChannelContext> = {
         deferSpanEnd({ span, data, end }) {
@@ -170,8 +179,9 @@ const _awsChannelIntegration = (() => {
           const failed = 'error' in data;
 
           // The channel `result`/`error` are untyped; the `$metadata` casts below name smithy's
-          // `ResponseMetadata` shape (`any`-valued, see `setMetadataAttributes`).
-          safe(() => {
+          // `ResponseMetadata` shape (`any`-valued, see `setMetadataAttributes`). Guarded so an
+          // enrichment throw can't escape into the user's `send` (see `getSpan`).
+          try {
             if (failed) {
               const err = data.error as
                 | { $metadata?: Record<string, any>; RequestId?: string; extendedRequestId?: string }
@@ -185,19 +195,20 @@ const _awsChannelIntegration = (() => {
                 httpStatusCode: errMetadata?.httpStatusCode,
                 extendedRequestId: err?.extendedRequestId ?? errMetadata?.extendedRequestId,
               });
-              return;
+            } else {
+              const output = data.result as { $metadata?: Record<string, any> } | undefined;
+              setMetadataAttributes(span, output?.$metadata);
+
+              const normalizedResponse: NormalizedResponse = {
+                data: output,
+                request: normalizedRequest,
+                requestId: output?.$metadata?.requestId,
+              };
+              servicesExtensions.responseHook(normalizedResponse, span);
             }
-
-            const output = data.result as { $metadata?: Record<string, any> } | undefined;
-            setMetadataAttributes(span, output?.$metadata);
-
-            const normalizedResponse: NormalizedResponse = {
-              data: output,
-              request: normalizedRequest,
-              requestId: output?.$metadata?.requestId,
-            };
-            servicesExtensions.responseHook(normalizedResponse, span);
-          });
+          } catch (error) {
+            DEBUG_BUILD && debug.warn('[orchestrion:aws-sdk] error enriching span', error);
+          }
 
           // Streaming responses end the span when their wrapped stream is consumed (see
           // bedrock-runtime); the helper must not end it on `send` settling. Errors always end here.
