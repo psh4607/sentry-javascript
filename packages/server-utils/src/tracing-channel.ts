@@ -91,6 +91,24 @@ export interface TracingChannelBindingHandle<TData extends object = object> {
 const NOOP = (): void => {};
 
 /**
+ * Creates a guard for span-building callbacks so a throw inside them can never break the user's
+ * traced call: they run inside the `tracingChannel(...).trace*` machinery wrapping the real function
+ * (as the `getSpan` producer / `beforeSpanEnd` handler / `deferSpanEnd` owner), where an unguarded
+ * throw would propagate into the traced call. `debugLabel` prefixes the DEBUG-only warning, e.g.
+ * `[orchestrion:graphql]`.
+ */
+export function makeSafeSpanBuilder(debugLabel: string): <T>(fn: () => T) => T | undefined {
+  return fn => {
+    try {
+      return fn();
+    } catch (error) {
+      DEBUG_BUILD && debug.warn(`${debugLabel} error building span`, error);
+      return undefined;
+    }
+  };
+}
+
+/**
  * Bind a span and its lifecycle to a tracing channel so the span becomes the active async context
  * for the traced operation and is ended when the operation completes.
  *
