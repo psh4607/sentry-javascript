@@ -9,7 +9,7 @@ import {
   URL_FULL,
 } from '@sentry/conventions/attributes';
 import type { SQS } from '../aws-sdk.types';
-import type { NormalizedRequest, NormalizedResponse } from '../types';
+import type { CommandInput, NormalizedRequest, NormalizedResponse } from '../types';
 import {
   addPropagationFieldsToAttributeNames,
   extractPropagationHeaders,
@@ -122,7 +122,7 @@ export class SqsServiceExtension implements ServiceExtension {
   }
 }
 
-function extractQueueUrl(commandInput: Record<string, any>): string {
+function extractQueueUrl(commandInput: CommandInput): string {
   return commandInput?.QueueUrl;
 }
 

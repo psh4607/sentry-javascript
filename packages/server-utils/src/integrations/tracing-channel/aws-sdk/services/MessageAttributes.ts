@@ -50,7 +50,9 @@ export function injectPropagationContext(
 
   if (Object.keys(attributes).length + headerKeys.length <= MAX_MESSAGE_ATTRIBUTES) {
     for (const key of headerKeys) {
-      (attributes as AwsSdkContextObject)[key] = { DataType: 'String', StringValue: headers[key] } as any;
+      // Index-assigning into the SQS/SNS map union needs one concrete map type; the written value
+      // shape is valid for both.
+      (attributes as SQS.MessageBodyAttributeMap)[key] = { DataType: 'String', StringValue: headers[key] };
     }
   } else {
     DEBUG_BUILD &&
