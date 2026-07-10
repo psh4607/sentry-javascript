@@ -31,8 +31,13 @@ interface TokenUsage {
 interface ConverseStreamOutput {
   messageStop?: { stopReason?: string };
   metadata?: { usage?: TokenUsage };
-  [key: string]: any;
+  [key: string]: unknown;
 }
+
+// Streamed `InvokeModel` chunks and response bodies are model-family-specific JSON (titan, nova,
+// claude, llama, cohere, mistral); the record helpers probe the shapes defensively, so `any` instead
+// of one structural type per family.
+type ParsedChunk = any;
 
 export class BedrockRuntimeServiceExtension implements ServiceExtension {
   public requestPreSpanHook(request: NormalizedRequest): RequestMetadata {
@@ -389,7 +394,7 @@ function setUsage(span: Span, usage: TokenUsage | undefined): void {
   }
 }
 
-function parseChunk(bytes?: Uint8Array): any {
+function parseChunk(bytes?: Uint8Array): ParsedChunk {
   if (!bytes || !(bytes instanceof Uint8Array)) {
     return null;
   }
@@ -402,7 +407,7 @@ function parseChunk(bytes?: Uint8Array): any {
   }
 }
 
-function recordNovaAttributes(parsedChunk: any, span: Span): void {
+function recordNovaAttributes(parsedChunk: ParsedChunk, span: Span): void {
   if (parsedChunk.metadata?.usage !== undefined) {
     if (parsedChunk.metadata?.usage.inputTokens !== undefined) {
       span.setAttribute(GEN_AI_USAGE_INPUT_TOKENS, parsedChunk.metadata.usage.inputTokens);
@@ -416,7 +421,7 @@ function recordNovaAttributes(parsedChunk: any, span: Span): void {
   }
 }
 
-function recordClaudeAttributes(parsedChunk: any, span: Span): void {
+function recordClaudeAttributes(parsedChunk: ParsedChunk, span: Span): void {
   if (parsedChunk.message?.usage?.input_tokens !== undefined) {
     span.setAttribute(GEN_AI_USAGE_INPUT_TOKENS, parsedChunk.message.usage.input_tokens);
   }
@@ -428,7 +433,7 @@ function recordClaudeAttributes(parsedChunk: any, span: Span): void {
   }
 }
 
-function recordTitanAttributes(parsedChunk: any, span: Span): void {
+function recordTitanAttributes(parsedChunk: ParsedChunk, span: Span): void {
   if (parsedChunk.inputTextTokenCount !== undefined) {
     span.setAttribute(GEN_AI_USAGE_INPUT_TOKENS, parsedChunk.inputTextTokenCount);
   }
@@ -440,7 +445,7 @@ function recordTitanAttributes(parsedChunk: any, span: Span): void {
   }
 }
 
-function recordLlamaAttributes(parsedChunk: any, span: Span): void {
+function recordLlamaAttributes(parsedChunk: ParsedChunk, span: Span): void {
   if (parsedChunk.prompt_token_count !== undefined) {
     span.setAttribute(GEN_AI_USAGE_INPUT_TOKENS, parsedChunk.prompt_token_count);
   }
@@ -452,7 +457,7 @@ function recordLlamaAttributes(parsedChunk: any, span: Span): void {
   }
 }
 
-function recordMistralAttributes(parsedChunk: any, span: Span): void {
+function recordMistralAttributes(parsedChunk: ParsedChunk, span: Span): void {
   if (parsedChunk.outputs?.[0]?.text !== undefined) {
     span.setAttribute(GEN_AI_USAGE_OUTPUT_TOKENS, Math.ceil(parsedChunk.outputs[0].text.length / 6));
   }
@@ -461,7 +466,7 @@ function recordMistralAttributes(parsedChunk: any, span: Span): void {
   }
 }
 
-function recordCohereAttributes(parsedChunk: any, span: Span): void {
+function recordCohereAttributes(parsedChunk: ParsedChunk, span: Span): void {
   if (parsedChunk.generations?.[0]?.text !== undefined) {
     span.setAttribute(GEN_AI_USAGE_OUTPUT_TOKENS, Math.ceil(parsedChunk.generations[0].text.length / 6));
   }
@@ -470,7 +475,7 @@ function recordCohereAttributes(parsedChunk: any, span: Span): void {
   }
 }
 
-function recordCohereRAttributes(parsedChunk: any, span: Span): void {
+function recordCohereRAttributes(parsedChunk: ParsedChunk, span: Span): void {
   if (parsedChunk.text !== undefined) {
     span.setAttribute(GEN_AI_USAGE_OUTPUT_TOKENS, Math.ceil(parsedChunk.text.length / 6));
   }
