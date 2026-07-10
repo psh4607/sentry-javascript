@@ -1,5 +1,7 @@
 import type { SpanKindValue } from '@sentry/core';
 
+// Command inputs are service-specific shapes from hundreds of AWS APIs; typing them would require
+// depending on the `@aws-sdk/*` client types. The per-service hooks read fields defensively instead.
 export type CommandInput = Record<string, any>;
 
 /**
@@ -14,6 +16,7 @@ export interface NormalizedRequest {
 }
 
 export interface NormalizedResponse {
+  // The command output, shaped per service/command (see `CommandInput` on why this isn't typed).
   data: any;
   request: NormalizedRequest;
   requestId?: string;

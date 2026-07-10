@@ -54,6 +54,8 @@ function safe<T>(fn: () => T): T | undefined {
   }
 }
 
+// `metadata` is smithy's `ResponseMetadata`, read off the untyped channel result/error (`any` for the
+// same reason as `CommandInput`, see types.ts).
 function setMetadataAttributes(span: Span, metadata: Record<string, any> | undefined): void {
   if (!metadata) {
     return;
@@ -165,6 +167,8 @@ const _awsChannelIntegration = (() => {
 
           const failed = 'error' in data;
 
+          // The channel `result`/`error` are untyped; the `$metadata` casts below name smithy's
+          // `ResponseMetadata` shape (`any`-valued, see `setMetadataAttributes`).
           safe(() => {
             if (failed) {
               const err = data.error as
