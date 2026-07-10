@@ -79,13 +79,13 @@ export class DynamodbServiceExtension implements ServiceExtension {
       if (normalizedRequest.commandInput?.GlobalSecondaryIndexes) {
         spanAttributes[ATTR_AWS_DYNAMODB_GLOBAL_SECONDARY_INDEXES] = toArray(
           normalizedRequest.commandInput.GlobalSecondaryIndexes,
-        ).map((x: Record<string, any>) => JSON.stringify(x));
+        ).map((x: unknown) => JSON.stringify(x));
       }
 
       if (normalizedRequest.commandInput?.LocalSecondaryIndexes) {
         spanAttributes[ATTR_AWS_DYNAMODB_LOCAL_SECONDARY_INDEXES] = toArray(
           normalizedRequest.commandInput.LocalSecondaryIndexes,
-        ).map((x: Record<string, any>) => JSON.stringify(x));
+        ).map((x: unknown) => JSON.stringify(x));
       }
     }
 
@@ -138,13 +138,13 @@ export class DynamodbServiceExtension implements ServiceExtension {
       if (normalizedRequest.commandInput?.AttributeDefinitions) {
         spanAttributes[ATTR_AWS_DYNAMODB_ATTRIBUTE_DEFINITIONS] = toArray(
           normalizedRequest.commandInput.AttributeDefinitions,
-        ).map((x: Record<string, any>) => JSON.stringify(x));
+        ).map((x: unknown) => JSON.stringify(x));
       }
 
       if (normalizedRequest.commandInput?.GlobalSecondaryIndexUpdates) {
         spanAttributes[ATTR_AWS_DYNAMODB_GLOBAL_SECONDARY_INDEX_UPDATES] = toArray(
           normalizedRequest.commandInput.GlobalSecondaryIndexUpdates,
-        ).map((x: Record<string, any>) => JSON.stringify(x));
+        ).map((x: unknown) => JSON.stringify(x));
       }
     }
 
@@ -160,14 +160,14 @@ export class DynamodbServiceExtension implements ServiceExtension {
     if (response.data?.ConsumedCapacity) {
       span.setAttribute(
         ATTR_AWS_DYNAMODB_CONSUMED_CAPACITY,
-        toArray(response.data.ConsumedCapacity).map((x: Record<string, any>) => JSON.stringify(x)),
+        toArray(response.data.ConsumedCapacity).map((x: unknown) => JSON.stringify(x)),
       );
     }
 
     if (response.data?.ItemCollectionMetrics) {
       span.setAttribute(
         ATTR_AWS_DYNAMODB_ITEM_COLLECTION_METRICS,
-        toArray(response.data.ItemCollectionMetrics).map((x: Record<string, any>) => JSON.stringify(x)),
+        toArray(response.data.ItemCollectionMetrics).map((x: unknown) => JSON.stringify(x)),
       );
     }
 
