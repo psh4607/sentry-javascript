@@ -25,7 +25,7 @@ import { readFileSync } from 'node:fs';
  *
  *   "Node (22) Integration Tests"          -> "Node Integration Tests"
  *   "Node (24) Integration Tests"          -> "Node Integration Tests"
- *   "Node (24) (TS 3.8) Integration Tests" -> "Node Integration Tests"
+ *   "Node (24) (TS 5.0) Integration Tests" -> "Node Integration Tests"
  */
 function normalizeJobName(name) {
   return name
