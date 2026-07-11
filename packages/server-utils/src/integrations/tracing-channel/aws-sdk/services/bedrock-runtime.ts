@@ -39,6 +39,8 @@ interface ConverseStreamOutput {
 // of one structural type per family.
 type ParsedChunk = any;
 
+const textDecoder = new TextDecoder();
+
 export class BedrockRuntimeServiceExtension implements ServiceExtension {
   public requestPreSpanHook(request: NormalizedRequest): RequestMetadata {
     switch (request.commandName) {
@@ -250,7 +252,7 @@ export class BedrockRuntimeServiceExtension implements ServiceExtension {
   private _responseHookInvokeModel(response: NormalizedResponse, span: Span): void {
     const currentModelId = response.request.commandInput?.modelId;
     if (response.data?.body) {
-      const decodedResponseBody = new TextDecoder().decode(response.data.body);
+      const decodedResponseBody = textDecoder.decode(response.data.body);
       const responseBody = JSON.parse(decodedResponseBody);
       if (currentModelId.includes('amazon.titan')) {
         if (responseBody.inputTextTokenCount !== undefined) {
@@ -326,29 +328,20 @@ export class BedrockRuntimeServiceExtension implements ServiceExtension {
       return;
     }
 
+    // Resolved once: the model family is fixed for the whole stream, and for unrecognized families
+    // the chunks don't need to be parsed at all.
+    const recordAttributes = resolveStreamRecorder(modelId);
+
     // Replace the original response body with our instrumented stream, deferring span.end() until the
     // entire stream is consumed. Downstream consumers still receive the full stream.
     response.data.body = (async function* () {
       try {
         for await (const chunk of stream) {
-          const parsedChunk = parseChunk(chunk?.chunk?.bytes);
-
-          if (!parsedChunk) {
-            // pass through
-          } else if (modelId.includes('amazon.titan')) {
-            recordTitanAttributes(parsedChunk, span);
-          } else if (modelId.includes('anthropic.claude')) {
-            recordClaudeAttributes(parsedChunk, span);
-          } else if (modelId.includes('amazon.nova')) {
-            recordNovaAttributes(parsedChunk, span);
-          } else if (modelId.includes('meta.llama')) {
-            recordLlamaAttributes(parsedChunk, span);
-          } else if (modelId.includes('cohere.command-r')) {
-            recordCohereRAttributes(parsedChunk, span);
-          } else if (modelId.includes('cohere.command')) {
-            recordCohereAttributes(parsedChunk, span);
-          } else if (modelId.includes('mistral')) {
-            recordMistralAttributes(parsedChunk, span);
+          if (recordAttributes) {
+            const parsedChunk = parseChunk(chunk?.chunk?.bytes);
+            if (parsedChunk) {
+              recordAttributes(parsedChunk, span);
+            }
           }
           yield chunk;
         }
@@ -357,6 +350,17 @@ export class BedrockRuntimeServiceExtension implements ServiceExtension {
       }
     })();
   }
+}
+
+function resolveStreamRecorder(modelId: string): ((parsedChunk: ParsedChunk, span: Span) => void) | undefined {
+  if (modelId.includes('amazon.titan')) return recordTitanAttributes;
+  if (modelId.includes('anthropic.claude')) return recordClaudeAttributes;
+  if (modelId.includes('amazon.nova')) return recordNovaAttributes;
+  if (modelId.includes('meta.llama')) return recordLlamaAttributes;
+  if (modelId.includes('cohere.command-r')) return recordCohereRAttributes;
+  if (modelId.includes('cohere.command')) return recordCohereAttributes;
+  if (modelId.includes('mistral')) return recordMistralAttributes;
+  return undefined;
 }
 
 async function* wrapConverseStreamResponse(
