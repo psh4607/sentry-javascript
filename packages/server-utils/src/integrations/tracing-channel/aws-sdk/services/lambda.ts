@@ -1,5 +1,5 @@
 import type { Span } from '@sentry/core';
-import { debug, SPAN_KIND } from '@sentry/core';
+import { debug, getTraceData, SPAN_KIND } from '@sentry/core';
 import { DEBUG_BUILD } from '../../../../debug-build';
 import {
   ATTR_FAAS_EXECUTION,
@@ -8,7 +8,6 @@ import {
   ATTR_FAAS_INVOKED_REGION,
 } from '../constants';
 import type { NormalizedRequest, NormalizedResponse } from '../types';
-import { getPropagationHeaders } from './MessageAttributes';
 import type { RequestMetadata, ServiceExtension } from './ServiceExtension';
 
 const INVOKE_COMMAND = 'Invoke';
@@ -54,7 +53,7 @@ export class LambdaServiceExtension implements ServiceExtension {
 
 function injectLambdaPropagationContext(clientContext: string | undefined, span: Span): string | undefined {
   try {
-    const propagatedContext = getPropagationHeaders(span);
+    const propagatedContext = getTraceData({ span });
 
     const parsedClientContext = clientContext ? JSON.parse(Buffer.from(clientContext, 'base64').toString('utf8')) : {};
 

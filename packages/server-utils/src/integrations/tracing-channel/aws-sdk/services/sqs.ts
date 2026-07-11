@@ -1,5 +1,5 @@
 import type { Span, SpanKindValue } from '@sentry/core';
-import { propagationContextFromHeaders, SPAN_KIND } from '@sentry/core';
+import { getTraceData, propagationContextFromHeaders, SPAN_KIND } from '@sentry/core';
 import {
   MESSAGING_BATCH_MESSAGE_COUNT,
   MESSAGING_DESTINATION_NAME,
@@ -62,7 +62,10 @@ export class SqsServiceExtension implements ServiceExtension {
       case 'SendMessage':
         {
           const origMessageAttributes = request.commandInput.MessageAttributes ?? {};
-          request.commandInput.MessageAttributes = injectPropagationContext(origMessageAttributes, span);
+          request.commandInput.MessageAttributes = injectPropagationContext(
+            origMessageAttributes,
+            getTraceData({ span }),
+          );
         }
         break;
 
@@ -70,8 +73,13 @@ export class SqsServiceExtension implements ServiceExtension {
         {
           const entries = request.commandInput?.Entries;
           if (Array.isArray(entries)) {
+            // Serialized once; the headers are identical for every entry of the batch.
+            const traceData = getTraceData({ span });
             entries.forEach((messageParams: { MessageAttributes: SQS.MessageBodyAttributeMap }) => {
-              messageParams.MessageAttributes = injectPropagationContext(messageParams.MessageAttributes ?? {}, span);
+              messageParams.MessageAttributes = injectPropagationContext(
+                messageParams.MessageAttributes ?? {},
+                traceData,
+              );
             });
           }
         }

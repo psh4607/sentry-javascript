@@ -1,5 +1,5 @@
 import type { Span, SpanKindValue } from '@sentry/core';
-import { SPAN_KIND } from '@sentry/core';
+import { getTraceData, SPAN_KIND } from '@sentry/core';
 import { MESSAGING_DESTINATION_NAME, MESSAGING_SYSTEM } from '@sentry/conventions/attributes';
 import {
   ATTR_AWS_SNS_TOPIC_ARN,
@@ -46,7 +46,7 @@ export class SnsServiceExtension implements ServiceExtension {
   public requestPostSpanHook(request: NormalizedRequest, span: Span): void {
     if (request.commandName === 'Publish') {
       const origMessageAttributes = request.commandInput.MessageAttributes ?? {};
-      request.commandInput.MessageAttributes = injectPropagationContext(origMessageAttributes, span);
+      request.commandInput.MessageAttributes = injectPropagationContext(origMessageAttributes, getTraceData({ span }));
     }
   }
 

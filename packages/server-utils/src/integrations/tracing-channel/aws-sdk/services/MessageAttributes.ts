@@ -1,10 +1,5 @@
-import type { Span } from '@sentry/core';
-import {
-  debug,
-  dynamicSamplingContextToSentryBaggageHeader,
-  getDynamicSamplingContextFromSpan,
-  spanToTraceHeader,
-} from '@sentry/core';
+import type { SerializedTraceData } from '@sentry/core';
+import { debug, uniq } from '@sentry/core';
 import { DEBUG_BUILD } from '../../../../debug-build';
 import type { SNS, SQS } from '../aws-sdk.types';
 
@@ -23,36 +18,27 @@ export interface AwsSdkContextObject {
   };
 }
 
-/** Build the `sentry-trace`/`baggage` header pair carrying the span's trace context. */
-export function getPropagationHeaders(span: Span): Record<string, string> {
-  const headers: Record<string, string> = {
-    [SENTRY_TRACE_HEADER]: spanToTraceHeader(span),
-  };
-  const baggage = dynamicSamplingContextToSentryBaggageHeader(getDynamicSamplingContextFromSpan(span));
-  if (baggage) {
-    headers[BAGGAGE_HEADER] = baggage;
-  }
-  return headers;
-}
-
 /**
- * Inject the span's trace-propagation headers into an SQS/SNS message-attribute map, so the consumer
- * can continue the trace. Respects the SQS 10-attribute quota. Mirrors the OTel integration's
- * `injectPropagationContext`, but writes Sentry's `sentry-trace`/`baggage` instead of W3C headers.
+ * Inject trace-propagation headers (from `getTraceData({ span })`) into an SQS/SNS message-attribute
+ * map, so the consumer can continue the trace. Respects the SQS 10-attribute quota. Mirrors the OTel
+ * integration's `injectPropagationContext`, but writes Sentry's `sentry-trace`/`baggage` instead of
+ * W3C headers. Callers pass the precomputed headers so batch sends serialize them only once.
  */
 export function injectPropagationContext(
   attributesMap: SQS.MessageBodyAttributeMap | SNS.MessageAttributeMap | undefined,
-  span: Span,
+  traceData: SerializedTraceData,
 ): SQS.MessageBodyAttributeMap | SNS.MessageAttributeMap {
   const attributes = attributesMap ?? {};
-  const headers = getPropagationHeaders(span);
-  const headerKeys = Object.keys(headers);
+  const headerKeys = Object.keys(traceData) as (keyof SerializedTraceData)[];
 
   if (Object.keys(attributes).length + headerKeys.length <= MAX_MESSAGE_ATTRIBUTES) {
     for (const key of headerKeys) {
-      // Index-assigning into the SQS/SNS map union needs one concrete map type; the written value
-      // shape is valid for both.
-      (attributes as SQS.MessageBodyAttributeMap)[key] = { DataType: 'String', StringValue: headers[key] };
+      const value = traceData[key];
+      if (value) {
+        // Index-assigning into the SQS/SNS map union needs one concrete map type; the written value
+        // shape is valid for both.
+        (attributes as SQS.MessageBodyAttributeMap)[key] = { DataType: 'String', StringValue: value };
+      }
     }
   } else {
     DEBUG_BUILD &&
@@ -79,7 +65,5 @@ export function extractPropagationHeaders(
 }
 
 export function addPropagationFieldsToAttributeNames(messageAttributeNames: string[] = []): string[] {
-  return messageAttributeNames.length
-    ? Array.from(new Set([...messageAttributeNames, ...PROPAGATION_FIELDS]))
-    : [...PROPAGATION_FIELDS];
+  return uniq([...messageAttributeNames, ...PROPAGATION_FIELDS]);
 }
