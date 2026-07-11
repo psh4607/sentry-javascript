@@ -152,10 +152,8 @@
       "rules": {
         "typescript/no-unsafe-member-access": "off",
         "typescript/no-explicit-any": "off",
-        "typescript/no-this-alias": "off",
         "max-lines": "off",
-        "complexity": "off",
-        "no-param-reassign": "off"
+        "complexity": "off"
       }
     },
     {

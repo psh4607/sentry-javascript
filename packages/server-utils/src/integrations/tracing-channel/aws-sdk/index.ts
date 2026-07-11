@@ -134,20 +134,23 @@ const _awsChannelIntegration = (() => {
           } catch {
             // Nothing to do; continue without a region.
           }
-          const regionHolder = { settled: false, promise: Promise.resolve() };
-          regionHolder.promise = Promise.resolve(regionResult)
-            .then(region => {
-              if (region) {
-                normalizedRequest.region = region;
-                span.setAttribute(CLOUD_REGION, region);
-              }
-            })
-            .catch(() => {
-              // Nothing to do; continue without a region.
-            })
-            .finally(() => {
-              regionHolder.settled = true;
-            });
+          // The `.finally` self-reference is safe: the callback only runs after initialization.
+          const regionHolder: { settled: boolean; promise: Promise<void> } = {
+            settled: false,
+            promise: Promise.resolve(regionResult)
+              .then(region => {
+                if (region) {
+                  normalizedRequest.region = region;
+                  span.setAttribute(CLOUD_REGION, region);
+                }
+              })
+              .catch(() => {
+                // Nothing to do; continue without a region.
+              })
+              .finally(() => {
+                regionHolder.settled = true;
+              }),
+          };
           data._sentryRegion = regionHolder;
 
           // Inject trace-propagation headers into outgoing messages (SQS/SNS/Lambda). Runs before
