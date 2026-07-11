@@ -55,8 +55,10 @@ function shouldDisableLayerExtensionForProxy(): boolean {
 // If at some point we need to filter a node integration out for good, we need to make sure to also filter it out there.
 export function getDefaultIntegrations(options: Options): Integration[] {
   const integrations = [...getDefaultIntegrationsWithoutPerformance(), awsIntegration(), awsLambdaIntegration()];
-  // If the app opted into diagnostics-channel injection, swap the OTel `Aws` integration for its
-  // channel-based equivalent (registered in `@sentry/server-utils`). No-op otherwise.
+  // If the app opted into diagnostics-channel injection, the OTel `Aws` integration is swapped for
+  // its channel-based equivalent AND the full channel-integration set is appended (mysql, postgres,
+  // express, ...), giving opted-in apps performance coverage this SDK's defaults otherwise omit.
+  // No-op otherwise.
   return applyDiagnosticsChannelInjectionIntegrations(integrations, options);
 }
 
