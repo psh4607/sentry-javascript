@@ -15,6 +15,8 @@ type UnknownPlugin = any;
 
 import codeTransformer from '@apm-js-collab/code-transformer-bundler-plugins/vite';
 import MagicString from 'magic-string';
+import { createRequire } from 'node:module';
+import { dirname, resolve } from 'node:path';
 import { INSTRUMENTED_MODULE_NAMES, SENTRY_INSTRUMENTATIONS } from '../config';
 
 // `vite` types live in the package's ESM-only subpath; under Node16 module
@@ -26,15 +28,14 @@ export interface SentryOrchestrionPluginOptions {
   /**
    * Whether to register the SDK's channel-subscriber integrations at build time.
    *
-   * When `true`, the plugin injects a generated (virtual) registration module
-   * into the app's server entry. That module puts the channel-subscriber
-   * integrations on the global orchestrion marker, where
-   * `getRegisteredChannelIntegrations()` picks them up. This is how the
-   * subscriber integrations — which SDKs deliberately do not import so bundlers
-   * can drop them — end up in the bundle exactly when this plugin injects the
-   * channels they subscribe to.
+   * When `true`, the plugin injects into the app's server entry a static import
+   * that registers the channel-subscriber integrations on the global orchestrion
+   * marker, where `getRegisteredChannelIntegrations()` picks them up. This is how
+   * the subscriber integrations — which SDKs deliberately do not import so
+   * bundlers can drop them — end up in the bundle exactly when this plugin
+   * injects the channels they subscribe to.
    *
-   * The registration is SDK-agnostic: the virtual module imports from
+   * The registration is SDK-agnostic: the injected import targets
    * `@sentry/server-utils` (a transitive dependency of every SDK that uses this
    * plugin), so any bundled SDK — Cloudflare today, Nuxt/Nitro, SvelteKit, Node
    * SSR later — enables it the same way, with nothing to publish or wire up.
@@ -64,8 +65,8 @@ export interface SentryOrchestrionPluginOptions {
  *      the `config` hook, since externalized deps are `require()`d at runtime
  *      from `node_modules` and never pass through the transform.
  *   2. `sentry-orchestrion-register-integrations` (only with
- *      `options.registerIntegrations`) — injects a generated registration
- *      module into the app's server entry, see
+ *      `options.registerIntegrations`) — injects the channel-integration
+ *      registration import into the app's server entry, see
  *      {@link SentryOrchestrionPluginOptions.registerIntegrations}.
  *   3. The upstream `@apm-js-collab/code-transformer-bundler-plugins/vite`
  *      plugin, fed our central `SENTRY_INSTRUMENTATIONS` config.
@@ -89,17 +90,47 @@ export function sentryOrchestrionPlugin(options: SentryOrchestrionPluginOptions 
   ];
 }
 
-// Id of the virtual registration module the plugin injects. The `\0` prefix on
-// the resolved id is the Rollup/Vite convention that marks a module as
-// synthetic, so no other plugin (or the file system) tries to resolve it.
+// The virtual registration module the plugin injects also acts as the sentinel
+// which prevents duplicate injection.
 const REGISTER_MODULE_ID = 'virtual:@sentry/orchestrion-register-integrations';
 const RESOLVED_REGISTER_MODULE_ID = `\0${REGISTER_MODULE_ID}`;
 
+/**
+ * Injects, into the app's server entry, a static import that registers the
+ * channel-subscriber integrations on the global orchestrion marker (where the
+ * SDK's `getRegisteredChannelIntegrations()` reads them).
+ *
+ * Two things make this work where the obvious approaches don't:
+ *
+ *   - The import is added in the `transform` (module-graph) phase, NOT via the
+ *     code transformer's `injectDiagnostics` hook. That hook runs at
+ *     `renderChunk`, after the graph is bundled, so a bare import it adds is
+ *     never bundled and workerd throws `No such module` at runtime.
+ *
+ *   - The virtual module imports an absolute ESM path computed at plugin init
+ *     (via `createRequire`, from the plugin's own package). The entry it's
+ *     injected into can itself be a virtual module (e.g.
+ *     `@cloudflare/vite-plugin`'s `virtual:cloudflare/worker-entry`) with no base
+ *     directory, and the worker environment's resolver won't resolve a bare
+ *     specifier from there. Resolving the ESM build explicitly also avoids
+ *     pulling a second, CommonJS copy of `@sentry/core` into the worker bundle.
+ *
+ * Registers every integration for now; the code transformer's post-bundle
+ * `transformedModules` list can't drive a bundled (tree-shaken) import, so
+ * per-module selection waits on a module-graph-phase hook upstream.
+ */
 function registerIntegrationsPlugin(): UnknownPlugin {
+  // `createRequire().resolve(REGISTER_MODULE)` would select the package's CJS
+  // export. Resolve the package root instead and explicitly target the ESM
+  // export which is bundled alongside the ESM-only Vite plugin.
+  const require = createRequire(import.meta.url);
+  const packageRoot = dirname(require.resolve('@sentry/server-utils/package.json'));
+  const resolvedRegisterModule = resolve(packageRoot, 'build/esm/orchestrion/index.js');
+
   // The slices of Vite's environment-API / Rollup plugin context we read; typed
   // structurally since we don't import `vite`/`rollup` types here (see note at
   // the top of the file).
-  interface TransformContext {
+  interface PluginContext {
     environment?: { config?: { consumer?: string } };
     getModuleInfo?: (id: string) => { isEntry?: boolean } | null;
   }
@@ -111,37 +142,35 @@ function registerIntegrationsPlugin(): UnknownPlugin {
     },
     load(id: string): { code: string; moduleSideEffects: boolean } | null {
       if (id !== RESOLVED_REGISTER_MODULE_ID) return null;
-      // For now this registers every channel integration. `@sentry/server-utils`
-      // is `sideEffects: false`, so a future selective version only has to import
-      // the specific factories it needs here and the rest tree-shakes out of the
-      // bundle — without the app having to publish or wire up anything.
+      // Keep this generated rather than moving the side effect into a published
+      // entry point: a future allow-list can emit only the requested factory
+      // imports here and let Rollup tree-shake the rest of the ESM module.
       return {
         code: [
-          "import { registerChannelIntegrations } from '@sentry/server-utils/orchestrion';",
+          `import { registerChannelIntegrations } from ${JSON.stringify(resolvedRegisterModule)};`,
           'registerChannelIntegrations();',
           '',
         ].join('\n'),
-        // The injected import is a bare side-effect import; keep the module so
-        // the `registerChannelIntegrations()` call — the whole point — survives.
         moduleSideEffects: true,
       };
     },
-    transform(this: TransformContext | undefined, code: string, id: string): { code: string; map: unknown } | null {
+    transform(this: PluginContext | undefined, code: string, id: string): { code: string; map: unknown } | null {
       // Client bundles must never pull in a server SDK's integrations; without
       // environment info (classic non-environment-API Vite) assume server.
       if (this?.environment?.config?.consumer === 'client') return null;
-      // Inject into the app entry only — hoisting guarantees registration runs
-      // before the entry body (and thus before `Sentry.init()`), whether the
-      // entry inits directly or re-exports a module that does. Matching every
-      // module that imports the SDK instead would scatter redundant imports
-      // across the graph (e.g. any file using `Sentry.startSpan`).
+      // Inject into the app entry only. It must be the first module request so
+      // registration runs before an entry body or a re-exported worker module
+      // can initialize Sentry.
       if (!this?.getModuleInfo?.(id)?.isEntry) return null;
       if (code.includes(REGISTER_MODULE_ID)) return null;
       const ms = new MagicString(code);
-      // Appending keeps existing sourcemap lines intact; ESM hoisting makes the
-      // import's position irrelevant, and registration only has to happen by
-      // the time `init()` runs, not before the entry body evaluates.
-      ms.append(`\nimport ${JSON.stringify(REGISTER_MODULE_ID)};\n`);
+      const injection = `import ${JSON.stringify(REGISTER_MODULE_ID)};\n`;
+      const shebangEnd = code.startsWith('#!') ? code.indexOf('\n') : -1;
+      if (code.startsWith('#!') && shebangEnd === -1) {
+        ms.append(`\n${injection}`);
+      } else {
+        ms.appendLeft(shebangEnd + 1, injection);
+      }
       return { code: ms.toString(), map: ms.generateMap({ hires: true }) };
     },
   };

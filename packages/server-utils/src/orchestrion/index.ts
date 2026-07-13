@@ -54,11 +54,11 @@ export const channelIntegrations = {
  * Puts the factories of all channel integrations onto the global orchestrion
  * marker, where `getRegisteredChannelIntegrations()` picks them up.
  *
- * Only meant to be called from a bundler-injected registration module (e.g.
- * `@sentry/cloudflare/orchestrion`, injected by the `@sentry/cloudflare/vite`
- * plugin) — calling it statically from an SDK would defeat the whole point of
- * the registry, which is keeping the integration code out of bundles that the
- * injecting plugin never touched.
+ * Only meant to be called from the registration import that a bundler plugin
+ * injects into the app entry (e.g. the one the `@sentry/cloudflare/vite` plugin
+ * injects into the worker bundle) — calling it statically from an SDK would
+ * defeat the whole point of the registry, which is keeping the integration code
+ * out of bundles that the injecting plugin never touched.
  */
 export function registerChannelIntegrations(): void {
   const marker = (globalThis.__SENTRY_ORCHESTRION__ = globalThis.__SENTRY_ORCHESTRION__ || {});

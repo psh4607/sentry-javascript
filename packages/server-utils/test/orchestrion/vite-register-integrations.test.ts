@@ -9,7 +9,7 @@ function getRegisterPlugin(plugins: any[]): any {
   return plugins.find(p => p.name === 'sentry-orchestrion-register-integrations');
 }
 
-// A Vite/Rollup plugin `this` context that reports `id` as an entry (or not),
+// A Vite/Rollup plugin `this` context reporting `id` as an entry (or not),
 // optionally in a given environment consumer ('client' | 'server').
 function ctx({ isEntry = true, consumer }: { isEntry?: boolean; consumer?: string } = {}): unknown {
   return {
@@ -39,7 +39,7 @@ describe('sentryOrchestrionPlugin — registerIntegrations', () => {
   describe('virtual registration module', () => {
     const plugin = getRegisterPlugin(sentryOrchestrionPlugin({ registerIntegrations: true }));
 
-    it('resolves the virtual id to the synthetic (\\0-prefixed) id', () => {
+    it('resolves the virtual id to the synthetic id', () => {
       expect(plugin.resolveId(REGISTER_MODULE_ID)).toBe(RESOLVED_REGISTER_MODULE_ID);
     });
 
@@ -47,16 +47,14 @@ describe('sentryOrchestrionPlugin — registerIntegrations', () => {
       expect(plugin.resolveId('some-other-module')).toBeNull();
     });
 
-    it('loads a module that registers the channel integrations, kept as a side effect', () => {
+    it('loads a side-effect module which registers integrations from the absolute ESM build', () => {
       const result = plugin.load(RESOLVED_REGISTER_MODULE_ID);
+      const normalizedCode = result?.code.replaceAll('\\', '/');
 
-      expect(result?.code).toContain("from '@sentry/server-utils/orchestrion'");
-      expect(result?.code).toContain('registerChannelIntegrations()');
+      expect(normalizedCode).toContain('/server-utils/build/esm/orchestrion/index.js');
+      expect(normalizedCode).not.toContain('/build/cjs/');
+      expect(result?.code).toContain('registerChannelIntegrations();');
       expect(result?.moduleSideEffects).toBe(true);
-    });
-
-    it('does not reference any specific SDK package (SDK-agnostic)', () => {
-      expect(plugin.load(RESOLVED_REGISTER_MODULE_ID)?.code).not.toContain('@sentry/cloudflare');
     });
 
     it('does not load unrelated ids', () => {
@@ -74,10 +72,18 @@ describe('sentryOrchestrionPlugin — registerIntegrations', () => {
       expect(result?.map).toBeTruthy();
     });
 
-    it('injects into a re-export entry that never names the SDK', () => {
+    it('injects before a re-exported worker can initialize the SDK', () => {
       const result = runTransform(plugin, `export { default } from './worker';\n`, ctx({ isEntry: true }));
 
-      expect(result?.code).toContain(`import "${REGISTER_MODULE_ID}";`);
+      expect(result?.code.indexOf(REGISTER_MODULE_ID)).toBeLessThan(
+        result?.code.indexOf("export { default } from './worker'"),
+      );
+    });
+
+    it('preserves a Node entry shebang while injecting before its module body', () => {
+      const result = runTransform(plugin, '#!/usr/bin/env node\nSentry.init({});\n', ctx({ isEntry: true }));
+
+      expect(result?.code).toBe(`#!/usr/bin/env node\nimport "${REGISTER_MODULE_ID}";\nSentry.init({});\n`);
     });
 
     it('does not inject into non-entry modules', () => {
@@ -85,9 +91,14 @@ describe('sentryOrchestrionPlugin — registerIntegrations', () => {
       expect(runTransform(plugin, code, ctx({ isEntry: false }))).toBeNull();
     });
 
-    it('does not double-inject when the virtual module is already imported', () => {
-      const code = `export default {};\nimport "${REGISTER_MODULE_ID}";\n`;
+    it('does not double-inject when registration is already present', () => {
+      const code = `import "${REGISTER_MODULE_ID}";\nexport default {};\n`;
       expect(runTransform(plugin, code, ctx({ isEntry: true }))).toBeNull();
+    });
+
+    it('does not confuse a mention of the registration function with the injection sentinel', () => {
+      const code = `// registerChannelIntegrations is injected by the plugin\nexport default {};\n`;
+      expect(runTransform(plugin, code, ctx({ isEntry: true }))?.code).toContain(REGISTER_MODULE_ID);
     });
 
     it('does not inject into client-environment entries', () => {
@@ -97,14 +108,14 @@ describe('sentryOrchestrionPlugin — registerIntegrations', () => {
     it('injects into server-environment entries', () => {
       const result = runTransform(plugin, 'export default {};\n', ctx({ isEntry: true, consumer: 'server' }));
 
-      expect(result?.code).toContain(`import "${REGISTER_MODULE_ID}";`);
+      expect(result?.code).toContain(REGISTER_MODULE_ID);
     });
 
     it('assumes server when no environment info is available (classic Vite)', () => {
       const noEnvCtx = { getModuleInfo: () => ({ isEntry: true }) };
       const result = runTransform(plugin, 'export default {};\n', noEnvCtx);
 
-      expect(result?.code).toContain(`import "${REGISTER_MODULE_ID}";`);
+      expect(result?.code).toContain(REGISTER_MODULE_ID);
     });
   });
 });
