@@ -1,15 +1,9 @@
 import * as diagnosticsChannel from 'node:diagnostics_channel';
-import type { IntegrationFn, Span, SpanAttributes } from '@sentry/core';
-import {
-  debug,
-  defineIntegration,
-  getActiveSpan,
-  SEMANTIC_ATTRIBUTE_SENTRY_ORIGIN,
-  SPAN_KIND,
-  startInactiveSpan,
-  waitForTracingChannelBinding,
-} from '@sentry/core';
+import type { IntegrationFn, Span } from '@sentry/core';
+import { debug, defineIntegration, getActiveSpan, waitForTracingChannelBinding } from '@sentry/core';
 import { subscribeMongooseDiagnosticChannels } from '../../mongoose/mongoose-dc-subscriber';
+import type { MongooseLegacyCollection } from '../../mongoose/mongoose-legacy-span';
+import { startMongooseLegacySpan } from '../../mongoose/mongoose-legacy-span';
 import { CHANNELS } from '../../orchestrion/channels';
 import { MONGOOSE_CONTEXT_CAPTURE_CHANNELS } from '../../orchestrion/config/mongoose';
 import { DEBUG_BUILD } from '../../debug-build';
@@ -23,40 +17,23 @@ const INTEGRATION_NAME = 'Mongoose' as const;
 // (`auto.db.mongoose.diagnostic_channel`).
 const ORIGIN = 'auto.db.orchestrion.mongoose';
 
-// OTel "OLD" db/net semantic-conventions, reproduced from the vendored
-// `@opentelemetry/instrumentation-mongoose` span shape so the orchestrion
-// spans match the OTel ones. Inlined as literals to avoid importing the
-// deprecated convention constants.
-const ATTR_DB_MONGODB_COLLECTION = 'db.mongodb.collection';
-const ATTR_DB_NAME = 'db.name';
-const ATTR_DB_USER = 'db.user';
-const ATTR_NET_PEER_NAME = 'net.peer.name';
-const ATTR_NET_PEER_PORT = 'net.peer.port';
-const ATTR_DB_OPERATION = 'db.operation';
-const ATTR_DB_SYSTEM = 'db.system';
-
-interface MongooseCollection {
-  name?: string;
-  conn?: { name?: string; user?: string; host?: string; port?: number };
-}
-
 interface MongooseQuery {
-  mongooseCollection?: MongooseCollection;
+  mongooseCollection?: MongooseLegacyCollection;
   model?: { modelName?: string };
   op?: string;
 }
 
 interface MongooseAggregate {
-  _model?: { collection?: MongooseCollection; modelName?: string };
+  _model?: { collection?: MongooseLegacyCollection; modelName?: string };
 }
 
 interface MongooseModelStatic {
-  collection?: MongooseCollection;
+  collection?: MongooseLegacyCollection;
   modelName?: string;
 }
 
 interface MongooseDocument {
-  constructor: { collection?: MongooseCollection; modelName?: string };
+  constructor: { collection?: MongooseLegacyCollection; modelName?: string };
 }
 
 /**
@@ -135,7 +112,7 @@ function subscribeOrchestrionMongooseChannels(): void {
   // Query execution.
   bindExecSpan(CHANNELS.MONGOOSE_QUERY_EXEC, self => {
     const query = self as MongooseQuery;
-    return startMongooseSpan(
+    return startSpan(
       query.mongooseCollection,
       query.model?.modelName,
       query.op ?? 'exec',
@@ -146,30 +123,39 @@ function subscribeOrchestrionMongooseChannels(): void {
   // Aggregation execution.
   bindExecSpan(CHANNELS.MONGOOSE_AGGREGATE_EXEC, self => {
     const model = (self as MongooseAggregate)._model;
-    return startMongooseSpan(model?.collection, model?.modelName, 'aggregate', STORED_PARENT_SPAN.get(self));
+    return startSpan(model?.collection, model?.modelName, 'aggregate', STORED_PARENT_SPAN.get(self));
   });
 
   // `doc.save()` (and the `$save` alias).
   bindExecSpan(CHANNELS.MONGOOSE_MODEL_SAVE, self => {
     const ctor = (self as MongooseDocument).constructor;
-    return startMongooseSpan(ctor.collection, ctor.modelName, 'save');
+    return startSpan(ctor.collection, ctor.modelName, 'save');
   });
 
   // `doc.remove()` (mongoose 5/6).
   bindExecSpan(CHANNELS.MONGOOSE_MODEL_REMOVE, self => {
     const ctor = (self as MongooseDocument).constructor;
-    return startMongooseSpan(ctor.collection, ctor.modelName, 'remove');
+    return startSpan(ctor.collection, ctor.modelName, 'remove');
   });
 
   // Static batch operations. `self` is the Model.
   bindExecSpan(CHANNELS.MONGOOSE_MODEL_INSERT_MANY, self => {
     const model = self as MongooseModelStatic;
-    return startMongooseSpan(model.collection, model.modelName, 'insertMany');
+    return startSpan(model.collection, model.modelName, 'insertMany');
   });
   bindExecSpan(CHANNELS.MONGOOSE_MODEL_BULK_WRITE, self => {
     const model = self as MongooseModelStatic;
-    return startMongooseSpan(model.collection, model.modelName, 'bulkWrite');
+    return startSpan(model.collection, model.modelName, 'bulkWrite');
   });
+}
+
+function startSpan(
+  collection: MongooseLegacyCollection | undefined,
+  modelName: string | undefined,
+  operation: string,
+  parentSpan?: Span,
+): Span {
+  return startMongooseLegacySpan({ collection, modelName, operation, origin: ORIGIN, parentSpan });
 }
 
 // `SentryTracingChannel` relaxes Node's subscriber type to a `Partial`, so a
@@ -199,37 +185,6 @@ function stashParentSpan(self: object | undefined): void {
   if (self && active) {
     STORED_PARENT_SPAN.set(self, active);
   }
-}
-
-function startMongooseSpan(
-  collection: MongooseCollection | undefined,
-  modelName: string | undefined,
-  operation: string,
-  parentSpan?: Span,
-): Span {
-  const attributes: SpanAttributes = {
-    ...getAttributesFromCollection(collection),
-    [ATTR_DB_OPERATION]: operation,
-    [ATTR_DB_SYSTEM]: 'mongoose',
-    [SEMANTIC_ATTRIBUTE_SENTRY_ORIGIN]: ORIGIN,
-  };
-
-  return startInactiveSpan({
-    name: `mongoose.${modelName}.${operation}`,
-    kind: SPAN_KIND.CLIENT,
-    attributes,
-    parentSpan,
-  });
-}
-
-function getAttributesFromCollection(collection: MongooseCollection | undefined): SpanAttributes {
-  return {
-    [ATTR_DB_MONGODB_COLLECTION]: collection?.name,
-    [ATTR_DB_NAME]: collection?.conn?.name,
-    [ATTR_DB_USER]: collection?.conn?.user,
-    [ATTR_NET_PEER_NAME]: collection?.conn?.host,
-    [ATTR_NET_PEER_PORT]: collection?.conn?.port,
-  };
 }
 
 /**

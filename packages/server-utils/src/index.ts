@@ -5,7 +5,8 @@
  */
 
 export { graphqlIntegration } from './graphql';
-export { mongooseIntegration } from './mongoose';
+export { mongooseIntegration, startMongooseLegacySpan } from './mongoose';
+export type { MongooseLegacyCollection, StartMongooseLegacySpanOptions } from './mongoose';
 export { mysql2Integration } from './mysql2';
 export { redisIntegration, type RedisDiagnosticChannelsOptions } from './redis';
 export type { RedisDiagnosticChannelResponseHook } from './redis/redis-dc-subscriber';
