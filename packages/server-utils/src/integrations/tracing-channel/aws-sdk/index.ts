@@ -101,7 +101,14 @@ const _awsChannelIntegration = (() => {
 
           // Commands with all-optional members can be constructed without an input (`new
           // ListBucketsCommand()`); the OTel path traces those too, so default rather than bail.
-          const normalizedRequest = normalizeV3Request(serviceName, commandName, command.input ?? {}, undefined);
+          // The default is assigned back onto the command (not kept detached) because service hooks
+          // mutate `commandInput` (trace-propagation headers, `MessageAttributeNames`) and those
+          // writes must reach the serialized request. Current smithy clients already default `input`
+          // to `{}` in the command constructor; this only affects older clients in our range.
+          if (!command.input) {
+            command.input = {};
+          }
+          const normalizedRequest = normalizeV3Request(serviceName, commandName, command.input, undefined);
           const requestMetadata = servicesExtensions.requestPreSpanHook(normalizedRequest);
 
           const span = startInactiveSpan({
