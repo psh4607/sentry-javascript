@@ -48,6 +48,3 @@
 /packages/sveltekit/                @getsentry/team-javascript-sdks-framework
 /packages/tanstackstart-react/      @getsentry/team-javascript-sdks-framework
 /packages/vue/                      @getsentry/team-javascript-sdks-framework
-
-# Require repository owner approval
-* @psh4607
