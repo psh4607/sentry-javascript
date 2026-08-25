@@ -15,7 +15,6 @@ export {
   getClient,
   isInitialized,
   isEnabled,
-  generateInstrumentOnce,
   getCurrentScope,
   getGlobalScope,
   getIsolationScope,
@@ -71,8 +70,6 @@ export {
   localVariablesIntegration,
   requestDataIntegration,
   functionToStringIntegration,
-  // eslint-disable-next-line typescript/no-deprecated
-  inboundFiltersIntegration,
   eventFiltersIntegration,
   linkedErrorsIntegration,
   setMeasurement,
@@ -119,16 +116,16 @@ export {
   postgresJsIntegration,
   processSessionIntegration,
   prismaIntegration,
+  otlpIntegration,
+  getOtlpTracesEndpoint,
   childProcessIntegration,
+  workerThreadsIntegration,
   createSentryWinstonTransport,
   hapiIntegration,
   setupHapiErrorHandler,
-  // eslint-disable-next-line typescript/no-deprecated
-  honoIntegration,
-  // eslint-disable-next-line typescript/no-deprecated
-  setupHonoErrorHandler,
   spotlightIntegration,
   initOpenTelemetry,
+  spanToStaticSpanJSON,
   spanToJSON,
   spanToTraceHeader,
   spanToBaggageHeader,
@@ -140,7 +137,7 @@ export {
   instrumentOpenAiClient,
   instrumentAnthropicAiClient,
   instrumentGoogleGenAIClient,
-  instrumentLangGraph,
+  instrumentStateGraph,
   instrumentStateGraphCompile,
   zodErrorsIntegration,
   profiler,
@@ -164,9 +161,9 @@ export {
   growthbookIntegration,
   metrics,
   spanStreamingIntegration,
+  withStaticSpan,
+  // oxlint-disable-next-line typescript/no-deprecated
   withStreamedSpan,
-  experimentalUseDiagnosticsChannelInjection,
-  diagnosticsChannelInjectionIntegrations,
 } from '@sentry/node';
 
 export {
@@ -176,10 +173,10 @@ export {
   rewriteFramesIntegration,
 } from '@sentry/core';
 
-export { awsIntegration } from './integration/aws';
+export { awsIntegration } from '@sentry/server-utils';
 export { awsLambdaIntegration } from './integration/awslambda';
 
 export { getDefaultIntegrations, init } from './init';
 // eslint-disable-next-line typescript/no-deprecated
-export { tryPatchHandler, wrapHandler } from './sdk';
+export { wrapHandler } from './sdk';
 export type { WrapperOptions } from './sdk';

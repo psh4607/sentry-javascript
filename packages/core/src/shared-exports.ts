@@ -10,10 +10,10 @@ export type { OfflineStore, OfflineTransportOptions } from './transports/offline
 export type { IntegrationIndex } from './integration';
 export * from './tracing';
 export * from './semanticAttributes';
-export { createEventEnvelope, createSessionEnvelope, createSpanEnvelope } from './envelope';
+export * from './tracing/spans/spanNames';
+export type { RawAttributes } from './attributes';
+export { createEventEnvelope, createSessionEnvelope } from './envelope';
 export {
-  captureCheckIn,
-  withMonitor,
   captureException,
   captureEvent,
   captureMessage,
@@ -36,6 +36,7 @@ export {
   captureSession,
   addEventProcessor,
 } from './exports';
+export { withMonitor, captureCheckIn } from './monitor';
 export {
   getCurrentScope,
   getIsolationScope,
@@ -50,10 +51,7 @@ export {
 } from './currentScopes';
 export { getDefaultCurrentScope, getDefaultIsolationScope } from './defaultScopes';
 export { setAsyncContextStrategy, getAsyncContextStrategy } from './asyncContext';
-export {
-  waitForTracingChannelBinding,
-  _INTERNAL_createTracingChannelBinding,
-} from './asyncContext/tracing-channel-binding';
+export { waitForTracingChannelBinding } from './asyncContext/tracing-channel-binding';
 export { getGlobalSingleton, getMainCarrier } from './carrier';
 export { makeSession, closeSession, updateSession } from './session';
 export { Scope } from './scope';
@@ -80,14 +78,18 @@ export {
 export { filterKeyValueData as _INTERNAL_filterKeyValueData } from './utils/data-collection/filterKeyValueData';
 export { filterCookies as _INTERNAL_filterCookies } from './utils/data-collection/filterCookies';
 export { filterQueryParams as _INTERNAL_filterQueryParams } from './utils/data-collection/filterQueryParams';
+export { filterCollectedUrl, filterCollectedUrlQuery } from './utils/data-collection/filterCollectedUrl';
 export { envToBool } from './utils/envToBool';
 export { applyScopeDataToEvent, mergeScopeData, getCombinedScopeData } from './utils/scopeData';
 export { prepareEvent } from './utils/prepareEvent';
 export type { ExclusiveEventHintOrCaptureContext } from './utils/prepareEvent';
 export { createCheckInEnvelope } from './checkin';
 export { hasSpansEnabled } from './utils/hasSpansEnabled';
-export { withStreamedSpan } from './tracing/spans/beforeSendSpan';
-export { isStreamedBeforeSendSpanCallback } from './tracing/spans/beforeSendSpan';
+export {
+  withStaticSpan,
+  // oxlint-disable-next-line typescript/no-deprecated
+  withStreamedSpan,
+} from './tracing/spans/beforeSendSpan';
 export { safeSetSpanJSONAttributes } from './tracing/spans/captureSpan';
 export { isSentryRequestUrl } from './utils/isSentryRequestUrl';
 export { handleCallbackErrors } from './utils/handleCallbackErrors';
@@ -95,13 +97,11 @@ export { parameterize, fmt } from './utils/parameterize';
 export type { HandleTunnelRequestOptions } from './utils/tunnel';
 export { handleTunnelRequest } from './utils/tunnel';
 export { addAutoIpAddressToSession } from './utils/ipAddress';
-// eslint-disable-next-line typescript/no-deprecated
-export { addAutoIpAddressToUser } from './utils/ipAddress';
 export {
   convertSpanLinksForEnvelope,
   spanToTraceHeader,
+  spanToStaticSpanJSON,
   spanToJSON,
-  spanToStreamedSpanJSON,
   spanIsSampled,
   spanIsSentrySpan,
   spanToTraceContext,
@@ -138,12 +138,10 @@ export {
 } from './utils/request';
 export type { MaxRequestBodySize } from './utils/request';
 export { DEFAULT_ENVIRONMENT, DEV_ENVIRONMENT } from './constants';
-export { SPAN_KIND, spanKindToName } from './spanKind';
-export type { SpanKindValue } from './spanKind';
+export { spanKindToName } from './spanKind';
+export type { SpanKind, SpanKindNumber } from './spanKind';
 export { addBreadcrumb } from './breadcrumbs';
 export { functionToStringIntegration } from './integrations/functiontostring';
-// eslint-disable-next-line typescript/no-deprecated
-export { inboundFiltersIntegration } from './integrations/eventFilters';
 export { eventFiltersIntegration } from './integrations/eventFilters';
 export { linkedErrorsIntegration } from './integrations/linkederrors';
 export { moduleMetadataIntegration } from './integrations/moduleMetadata';
@@ -178,80 +176,8 @@ export {
 export * as metrics from './metrics/public-api';
 export type { MetricOptions } from './metrics/public-api';
 export { createConsolaReporter } from './integrations/consola';
-export { addVercelAiProcessors, getProviderMetadataAttributes } from './tracing/vercel-ai';
-export { getTruncatedJsonString, shouldEnableTruncation, resolveAIRecordingOptions } from './tracing/ai/utils';
-export {
-  GEN_AI_INPUT_MESSAGES_ORIGINAL_LENGTH_ATTRIBUTE,
-  GEN_AI_REQUEST_MODEL_ATTRIBUTE,
-  GEN_AI_SYSTEM_INSTRUCTIONS_ATTRIBUTE,
-} from './tracing/ai/gen-ai-attributes';
-export { _INTERNAL_getSpanContextForToolCallId, _INTERNAL_cleanupToolCallSpanContext } from './tracing/vercel-ai/utils';
-export { toolCallSpanContextMap as _INTERNAL_toolCallSpanContextMap } from './tracing/vercel-ai/constants';
-export {
-  instrumentOpenAiClient,
-  extractRequestAttributes as extractOpenAiRequestAttributes,
-  addRequestAttributes as addOpenAiRequestAttributes,
-} from './tracing/openai';
-export {
-  addResponseAttributes as addOpenAiResponseAttributes,
-  extractRequestParameters as extractOpenAiRequestParameters,
-} from './tracing/openai/utils';
-export { instrumentStream as instrumentOpenAiStream } from './tracing/openai/streaming';
-export { OPENAI_INTEGRATION_NAME } from './tracing/openai/constants';
-export {
-  instrumentAnthropicAiClient,
-  extractRequestAttributes as extractAnthropicRequestAttributes,
-  addPrivateRequestAttributes as addAnthropicRequestAttributes,
-  addResponseAttributes as addAnthropicResponseAttributes,
-} from './tracing/anthropic-ai';
-export { instrumentAsyncIterableStream, instrumentMessageStream } from './tracing/anthropic-ai/streaming';
-export { ANTHROPIC_AI_INTEGRATION_NAME } from './tracing/anthropic-ai/constants';
-export {
-  instrumentGoogleGenAIClient,
-  extractRequestAttributes as extractGoogleGenAIRequestAttributes,
-  addPrivateRequestAttributes as addGoogleGenAIRequestAttributes,
-  addResponseAttributes as addGoogleGenAIResponseAttributes,
-} from './tracing/google-genai';
-export { instrumentStream as instrumentGoogleGenAIStream } from './tracing/google-genai/streaming';
-export { GOOGLE_GENAI_INTEGRATION_NAME } from './tracing/google-genai/constants';
-export type { GoogleGenAIResponse } from './tracing/google-genai/types';
-export { createLangChainCallbackHandler, instrumentLangChainEmbeddings } from './tracing/langchain';
-export { _INTERNAL_getLangChainEmbeddingsSpanOptions } from './tracing/langchain/embeddings';
-export { _INTERNAL_mergeLangChainCallbackHandler } from './tracing/langchain/utils';
-export { LANGCHAIN_INTEGRATION_NAME } from './tracing/langchain/constants';
-export type { LangChainOptions, LangChainIntegration } from './tracing/langchain/types';
-export {
-  instrumentStateGraphCompile,
-  instrumentCreateReactAgent,
-  instrumentLangGraph,
-  instrumentCompiledGraphInvoke,
-  _INTERNAL_getLangGraphCreateAgentSpanOptions,
-} from './tracing/langgraph';
-export { wrapToolsWithSpans, extractLLMFromParams, extractAgentNameFromParams } from './tracing/langgraph/utils';
-export { LANGGRAPH_INTEGRATION_NAME } from './tracing/langgraph/constants';
-export type { LangGraphOptions, LangGraphIntegration, CompiledGraph } from './tracing/langgraph/types';
-export { instrumentWorkersAiClient } from './tracing/workers-ai';
-export type { WorkersAiClient, WorkersAiOptions } from './tracing/workers-ai/types';
-// eslint-disable-next-line typescript/no-deprecated
-export type { OpenAiClient, OpenAiOptions, InstrumentedMethod } from './tracing/openai/types';
-export type {
-  AnthropicAiClient,
-  AnthropicAiOptions,
-  // eslint-disable-next-line typescript/no-deprecated
-  AnthropicAiInstrumentedMethod,
-  AnthropicAiResponse,
-} from './tracing/anthropic-ai/types';
-export type {
-  GoogleGenAIClient,
-  GoogleGenAIChat,
-  GoogleGenAIOptions,
-  GoogleGenAIInstrumentedMethod,
-} from './tracing/google-genai/types';
-// eslint-disable-next-line typescript/no-deprecated
-export type { GoogleGenAIIstrumentedMethod } from './tracing/google-genai/types';
 export { SpanBuffer } from './tracing/spans/spanBuffer';
 export { hasSpanStreamingEnabled } from './tracing/spans/hasSpanStreamingEnabled';
-export { spanStreamingIntegration } from './integrations/spanStreaming';
 export type { FeatureFlag } from './utils/featureFlags';
 export {
   _INTERNAL_copyFlagsFromScopeToEvent,
@@ -348,6 +274,7 @@ export {
   TRACEPARENT_REGEXP,
   extractTraceparentData,
   generateSentryTraceHeader,
+  isContinuingTrace,
   propagationContextFromHeaders,
   shouldContinueTrace,
   generateTraceparentHeader,
@@ -359,7 +286,6 @@ export {
   createAttachmentEnvelopeItem,
   createEnvelope,
   createEventEnvelopeHeaders,
-  createSpanEnvelopeItem,
   envelopeContainsItemType,
   envelopeItemTypeToDataCategory,
   forEachEnvelopeItem,
@@ -395,6 +321,8 @@ export {
   isURLObjectRelative,
   getSanitizedUrlStringFromUrlObject,
   stripDataUrlContent,
+  getUrlQuery,
+  getUrlFragment,
 } from './utils/url';
 export {
   eventFromMessage,
@@ -421,7 +349,6 @@ export type {
   CultureContext,
   TraceContext,
   CloudResourceContext,
-  MissingInstrumentationContext,
 } from './types/context';
 export type { DataCategory } from './types/datacategory';
 export type { DsnComponents, DsnLike, DsnProtocol } from './types/dsn';
@@ -451,9 +378,7 @@ export type {
   ProfileItem,
   ProfileChunkEnvelope,
   ProfileChunkItem,
-  SpanEnvelope,
   StreamedSpanEnvelope,
-  SpanItem,
   LogEnvelope,
   MetricEnvelope,
 } from './types/envelope';
@@ -539,7 +464,7 @@ export type {
   SerializedStreamedSpanContainer,
   StreamedSpanJSON,
 } from './types/span';
-export type { SpanStatus } from './types/spanStatus';
+export type { SpanStatus, SpanStatusType } from './types/spanStatus';
 export type { Log, LogSeverityLevel } from './types/log';
 export type { SpanLink } from './types/link';
 export type {
@@ -592,9 +517,11 @@ export type { LegacyCSPReport } from './types/csp';
 export type { SerializedLog, SerializedLogContainer } from './types/log';
 export type {
   BuildTimeOptionsBase,
-  UnstableVitePluginOptions,
-  UnstableRollupPluginOptions,
-  UnstableWebpackPluginOptions,
+  ModuleMetadata,
+  ModuleMetadataCallback,
+  ModuleMetadataCallbackArgs,
+  ReactComponentAnnotationOptions,
+  ResolveSourceMapHook,
 } from './build-time-plugins/buildTimeOptionsBase';
 export type { RandomSafeContextRunner as _INTERNAL_RandomSafeContextRunner } from './utils/randomSafeContext';
 export {

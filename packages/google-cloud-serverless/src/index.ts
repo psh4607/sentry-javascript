@@ -15,7 +15,6 @@ export {
   getClient,
   isInitialized,
   isEnabled,
-  generateInstrumentOnce,
   getCurrentScope,
   getGlobalScope,
   getIsolationScope,
@@ -72,8 +71,6 @@ export {
   requestDataIntegration,
   fsIntegration,
   functionToStringIntegration,
-  // eslint-disable-next-line typescript/no-deprecated
-  inboundFiltersIntegration,
   eventFiltersIntegration,
   linkedErrorsIntegration,
   setMeasurement,
@@ -118,15 +115,14 @@ export {
   postgresIntegration,
   postgresJsIntegration,
   prismaIntegration,
+  otlpIntegration,
+  getOtlpTracesEndpoint,
   processSessionIntegration,
   hapiIntegration,
   setupHapiErrorHandler,
-  // eslint-disable-next-line typescript/no-deprecated
-  honoIntegration,
-  // eslint-disable-next-line typescript/no-deprecated
-  setupHonoErrorHandler,
   spotlightIntegration,
   initOpenTelemetry,
+  spanToStaticSpanJSON,
   spanToJSON,
   spanToTraceHeader,
   spanToBaggageHeader,
@@ -138,7 +134,7 @@ export {
   instrumentOpenAiClient,
   instrumentAnthropicAiClient,
   instrumentGoogleGenAIClient,
-  instrumentLangGraph,
+  instrumentStateGraph,
   instrumentStateGraphCompile,
   zodErrorsIntegration,
   profiler,
@@ -146,6 +142,7 @@ export {
   anthropicAIIntegration,
   googleGenAIIntegration,
   childProcessIntegration,
+  workerThreadsIntegration,
   createSentryWinstonTransport,
   vercelAIIntegration,
   logger,
@@ -164,6 +161,8 @@ export {
   unleashIntegration,
   metrics,
   spanStreamingIntegration,
+  withStaticSpan,
+  // oxlint-disable-next-line typescript/no-deprecated
   withStreamedSpan,
 } from '@sentry/node';
 

@@ -53,16 +53,19 @@ test('Sends Effect spans with correct parent-child structure', async ({ baseURL 
     expect.objectContaining({
       contexts: expect.objectContaining({
         trace: expect.objectContaining({
+          op: 'http.server',
           origin: 'auto.http.effect',
         }),
       }),
       spans: [
         expect.objectContaining({
           description: 'custom-effect-span',
+          op: 'function',
           origin: 'auto.function.effect',
         }),
         expect.objectContaining({
           description: 'nested-span',
+          op: 'function',
           origin: 'auto.function.effect',
         }),
       ],
@@ -73,7 +76,7 @@ test('Sends Effect spans with correct parent-child structure', async ({ baseURL 
             name: 'npm:@sentry/effect',
           }),
           expect.objectContaining({
-            name: 'npm:@sentry/node-light',
+            name: 'npm:@sentry/node',
           }),
         ],
       }),

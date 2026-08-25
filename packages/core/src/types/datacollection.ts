@@ -18,7 +18,7 @@ export type HttpBodyCollectionTarget = 'incomingRequest' | 'outgoingRequest' | '
 export interface DataCollection {
   /**
    * Automatically populate `user.*` fields from instrumentation sources.
-   * @default false
+   * @default true
    */
   userInfo?: boolean;
 
@@ -43,9 +43,6 @@ export interface DataCollection {
    * @default ['incomingRequest', 'outgoingRequest', 'incomingResponse', 'outgoingResponse']
    */
   httpBodies?: HttpBodyCollectionTarget[];
-
-  /** @deprecated Use `urlQueryParams` instead. */
-  queryParams?: CollectBehavior;
 
   /**
    * Controls URL query parameter collection and sensitive value filtering.
@@ -91,9 +88,16 @@ export interface DataCollection {
 
   /**
    * Capture local variable values in stack frames.
+   *
+   * Accepts a Boolean (`true` collects all variables, `false` collects none) or a `CollectBehavior` to filter which
+   * variables are sent by name (`{ allow: [...] }` / `{ deny: [...] }`), matching against variable names.
+   *
+   * Note: filtering by name requires knowing the variable names **as they appear after bundling**. Minifiers and other
+   * build-time transforms frequently rename local variables (e.g. `password` becomes `a`), so allow/deny terms
+   * configured against source names may not match the names captured at runtime.
    * @default true
    */
-  stackFrameVariables?: boolean;
+  stackFrameVariables?: boolean | CollectBehavior;
 
   /**
    * Number of source code context lines to capture around stack frames.
@@ -105,8 +109,7 @@ export interface DataCollection {
 /**
  * Fully resolved `DataCollection` with all defaults applied.
  */
-// todo(v11): change `Omit<DataCollection, 'queryParams'>` to just `DataCollection`
-export type ResolvedDataCollection = Required<Omit<DataCollection, 'queryParams'>> & {
+export type ResolvedDataCollection = Required<DataCollection> & {
   httpHeaders: Required<NonNullable<DataCollection['httpHeaders']>>;
   graphQL: Required<NonNullable<DataCollection['graphQL']>>;
   genAI: Required<NonNullable<DataCollection['genAI']>>;
